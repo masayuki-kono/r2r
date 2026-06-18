@@ -2,6 +2,8 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 #![allow(dead_code)]
+// bindgen derives PartialEq on structs containing fn pointers
+#![allow(unpredictable_function_pointer_comparisons)]
 // Silence "`extern` fn uses type `u128`, which is not FFI-safe"
 // As of rustc 1.78, this has been fixed.
 // It could be good to still warn if building with an older rust version.

@@ -281,6 +281,7 @@ pub struct UntypedActionSupport {
 }
 
 impl UntypedActionSupport {
+    #[allow(dead_code)] // only referenced from generated action helpers when actions are built
     fn new<T>() -> Self
     where
         T: WrappedActionTypeSupport,

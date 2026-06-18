@@ -182,7 +182,7 @@ impl Node {
 
     /// Creates a ROS node.
     pub fn create(ctx: Context, name: &str, namespace: &str) -> Result<Node> {
-        let (res, node_handle) = {
+        let (res, mut node_handle) = {
             let mut ctx_handle = ctx.context_handle.lock().unwrap();
 
             let c_node_name = CString::new(name).unwrap();
@@ -203,6 +203,11 @@ impl Node {
         };
 
         if res == RCL_RET_OK as i32 {
+            if let Err(e) = init_rosout_publisher(node_handle.as_mut()) {
+                unsafe { rcl_node_fini(node_handle.as_mut()) };
+                return Err(e);
+            }
+
             let ros_clock = Arc::new(Mutex::new(Clock::create(ClockType::RosTime)?));
             #[cfg(r2r__rosgraph_msgs__msg__Clock)]
             let time_source = {
@@ -1693,10 +1698,37 @@ impl Drop for Node {
 
             p.destroy(self.node_handle.as_mut());
         }
+        fini_rosout_publisher(self.node_handle.as_mut());
         unsafe {
             rcl_node_fini(self.node_handle.as_mut());
         }
     }
+}
+
+fn rosout_publisher_enabled(node_handle: &rcl_node_t) -> bool {
+    if !unsafe { rcl_logging_rosout_enabled() } {
+        return false;
+    }
+    let options = unsafe { rcl_node_get_options(node_handle) };
+    !options.is_null() && unsafe { (*options).enable_rosout }
+}
+
+fn init_rosout_publisher(node_handle: &mut rcl_node_t) -> Result<()> {
+    if !rosout_publisher_enabled(node_handle) {
+        return Ok(());
+    }
+    let ret = unsafe { rcl_logging_rosout_init_publisher_for_node(node_handle) };
+    if ret != RCL_RET_OK as i32 {
+        return Err(Error::from_rcl_error(ret));
+    }
+    Ok(())
+}
+
+fn fini_rosout_publisher(node_handle: &mut rcl_node_t) {
+    if !rosout_publisher_enabled(node_handle) {
+        return;
+    }
+    unsafe { rcl_logging_rosout_fini_publisher_for_node(node_handle) };
 }
 
 pub trait IsAvailablePollable {
